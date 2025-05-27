@@ -4,28 +4,24 @@ import com.example.model.Person;
 import com.example.processor.PersonItemProcessor;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
-import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
-import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
+import org.springframework.batch.core.job.builder.JobBuilder;
+import org.springframework.batch.core.repository.JobRepository;
+import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.item.database.BeanPropertyItemSqlParameterSourceProvider;
 import org.springframework.batch.item.database.JdbcBatchItemWriter;
 import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.batch.item.file.mapping.BeanWrapperFieldSetMapper;
 import org.springframework.batch.item.file.mapping.DefaultLineMapper;
 import org.springframework.batch.item.file.transform.DelimitedLineTokenizer;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.transaction.PlatformTransactionManager;
 
 import javax.sql.DataSource;
 
 @Configuration
 public class BatchConfig {
-    @Autowired
-    private JobBuilderFactory jobBuilderFactory;
-
-    @Autowired
-    private StepBuilderFactory stepBuilderFactory;
 
     @Bean
     public FlatFileItemReader<Person> reader() {
@@ -57,9 +53,13 @@ public class BatchConfig {
     }
 
     @Bean
-    public Step step1(FlatFileItemReader<Person> reader, PersonItemProcessor processor, JdbcBatchItemWriter<Person> writer) {
-        return stepBuilderFactory.get("step1")
-                .<Person, Person>chunk(10)
+    public Step step1(JobRepository jobRepository,
+                      PlatformTransactionManager transactionManager,
+                      FlatFileItemReader<Person> reader,
+                      PersonItemProcessor processor,
+                      JdbcBatchItemWriter<Person> writer) {
+        return new StepBuilder("step1", jobRepository)
+                .<Person, Person>chunk(10, transactionManager)
                 .reader(reader)
                 .processor(processor)
                 .writer(writer)
@@ -67,8 +67,8 @@ public class BatchConfig {
     }
 
     @Bean
-    public Job job(Step step1) {
-        return jobBuilderFactory.get("processPersonJob")
+    public Job job(JobRepository jobRepository, Step step1) {
+        return new JobBuilder("processPersonJob", jobRepository)
                 .start(step1)
                 .build();
     }
